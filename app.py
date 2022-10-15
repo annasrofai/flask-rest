@@ -1,11 +1,21 @@
+# Library untuk melakukan perhitungan kata
 from sklearn.feature_extraction.text import CountVectorizer
+# Library untuk membuat REST API
 from flask import Flask, jsonify
-from tweetdataRepository import TweetDataRepository
+# Library untuk memperbolehkan CORS
 from flask_cors import CORS
-import pandas as pd
+# Library untuk memproses JSON
 import json
+# Library untuk memproses kata
+import pandas as pd
+# import class yang berisi fungsi pembantu
+from tweetdataRepository import TweetDataRepository
+
+# mendefinisikan main
 app = Flask(__name__)
+# mendefinisikan class
 repo = TweetDataRepository()
+# memperbolehkan CORS
 CORS(app)
 
 
