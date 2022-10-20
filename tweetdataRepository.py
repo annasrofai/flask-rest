@@ -14,7 +14,7 @@ class TweetDataRepository:
         # # ----- db lokal
         self.client = MongoClient('localhost', 27017)
         self.db = self.client.TwitterStream
-        self.tweet_data = self.db.tweetsSentiment3
+        self.tweet_data = self.db.tweetsSentiment4
         # # ----- db atlasku
         # self.client = MongoClient(
         #     "mongodb+srv://capstone:dteti@cluster0.fz15r5k.mongodb.net/?retryWrites=true&w=majority")
@@ -103,7 +103,7 @@ class TweetDataRepository:
         # to_date_str = until_str + "T23:59:59+00:00"
         # from_date = datetime.strptime(from_date_str, '%Y-%m-%dT%H:%M:%S%z')
         # to_date = datetime.strptime(to_date_str, '%Y-%m-%dT%H:%M:%S%z')
-        from_date_str_gmt_7 = from_str + "T00:00:00+07:00"
+        from_date_str_gmt_7 = from_str + "T00:00:01+07:00"
         to_date_str_gmt_7 = until_str + "T23:59:59+07:00"
         from_date_gmt_7 = datetime.strptime(
             from_date_str_gmt_7, '%Y-%m-%dT%H:%M:%S%z')
@@ -113,7 +113,10 @@ class TweetDataRepository:
             pytz.timezone('Etc/Greenwich'))
         to_date_gmt_0 = to_date_gmt_7.astimezone(
             pytz.timezone('Etc/Greenwich'))
-
+        print("from")
+        print(from_date_gmt_0)
+        print("to")
+        print(to_date_gmt_0)
         aggregation = [
             {"$match":
                 {"$and": [{"created": {"$gte": from_date_gmt_0, "$lte": to_date_gmt_0}}, {
@@ -125,7 +128,9 @@ class TweetDataRepository:
                         'createdAt': {
                             '$dateToString': {
                                 'format': '%Y-%m-%d',
-                                'date': '$created'
+                                'date': '$created',
+                                'timezone': '+07:00'
+
                             }
                         },
                         'sentimen': '$sentimen'
