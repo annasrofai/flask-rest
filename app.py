@@ -10,6 +10,7 @@ import json
 import pandas as pd
 # import class yang berisi fungsi pembantu
 from tweetdataRepository import TweetDataRepository
+import numpy as np
 
 # mendefinisikan main
 app = Flask(__name__)
@@ -19,26 +20,181 @@ repo = TweetDataRepository()
 CORS(app)
 
 
-@app.route('/api/tweet_w_count/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
-def get_all_tweet_with_count_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
-    todos = repo.get_all_tweet_with_count_provider_date_to_date(provider_pilihan,
-                                                                tanggal_awal, tanggal_akhir)
-    response = jsonify(todos)
+def _hapus_spasi(input_text):
+    # The split() method splits a string into a list.
+    # default separator is any whitespace.
+    # "internet lambat    banget" -----> ['internet', 'lambat', 'banget']
+    words = input_text.split()
+    # The join() method takes all items in an iterable and joins them into one string.
+    # A string must be specified as the separator.
+    # " " <----------- seperator
+    # ['internet', 'lambat', 'banget'] ---------> "internet lambat banget"
+    new_text = " ".join(words)
+    # Mengembalikan nilai new_text
+    return new_text
+
+
+# di bawah ini  endpoint yang dipakai lur
+
+
+@app.route('/api/fix_sentimen/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
+def get_all_fix_sentimen_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
+    todos = repo.get_all_tweet_provider_date_to_date(provider_pilihan,
+                                                     tanggal_awal, tanggal_akhir)
+    tweets_df = pd.DataFrame(todos)
+    if tweets_df.empty == False:
+        # ------------
+        tweets_df['text_preprocessed_2'] = tweets_df['text'].str.lower()
+        tweets_df["text_preprocessed_2"] = tweets_df["text_preprocessed_2"].str.replace(
+            '\n', ' ')
+        tweets_df['text_preprocessed_2'] = tweets_df['text_preprocessed_2'].str.replace(
+            'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', ' ')
+        tweets_df['text_preprocessed_2'] = tweets_df['text_preprocessed_2'].apply(
+            _hapus_spasi)
+        # print(tweets_df)
+        tweets_df = tweets_df.drop_duplicates(subset='text_preprocessed_2')
+        tweets_df = tweets_df.reset_index(drop=True)
+        tweets_df.drop(tweets_df.columns[12], axis=1, inplace=True)
+        # ------------
+
+        tanggal_var = tweets_df['created_date'].value_counts()
+        tanggal_var_df = pd.DataFrame(tanggal_var)
+        tanggal_var = tanggal_var_df.index.to_numpy()
+        tanggal_var = np.sort(tanggal_var, axis=None)
+
+        sentimen_positif = []
+        sentimen_negatif = []
+        sentimen_total = []
+
+        for i in tanggal_var:
+            print("--------------------")
+            print(i)
+            # name = i
+            # xx = str(name)
+            df_name = "df" + str(i)
+            df_name = tweets_df[tweets_df["created_date"].str.contains(
+                i) == True]
+            print(df_name)
+            print("--------------------")
+            count_sentimen_pos = 0
+            count_sentimen_neg = 0
+            for index, row in df_name.iterrows():
+                text = row["sentimen"]
+                if text == "positif":
+                    count_sentimen_pos = count_sentimen_pos + 1
+                else:
+                    count_sentimen_neg = count_sentimen_neg + 1
+            count_sentimen_tot = count_sentimen_pos + count_sentimen_neg
+            sentimen_positif.append(count_sentimen_pos)
+            sentimen_negatif.append(count_sentimen_neg)
+            sentimen_total.append(count_sentimen_tot)
+
+        print(tanggal_var)
+        print(sentimen_positif)
+        print(sentimen_negatif)
+        print(sentimen_total)
+
+        df_sentimen = pd.DataFrame(
+            columns=['created_date', 'sentimen_pos', 'sentimen_neg', 'sentimen_sum', 'id'])
+        df_sentimen['created_date'] = tanggal_var
+        df_sentimen['sentimen_pos'] = sentimen_positif
+        df_sentimen['sentimen_neg'] = sentimen_negatif
+        df_sentimen['sentimen_sum'] = sentimen_total
+        df_sentimen['id'] = df_sentimen.index
+
+        df_sentimen['sentimen_pos_persen'] = (df_sentimen['sentimen_pos'] /
+                                              df_sentimen['sentimen_sum']) * 100
+        df_sentimen['sentimen_neg_persen'] = (df_sentimen['sentimen_neg'] /
+                                              df_sentimen['sentimen_sum']) * 100
+        df_sentimen["sentimen_pos_persen"] = df_sentimen["sentimen_pos_persen"].round(
+            1)
+        df_sentimen["sentimen_neg_persen"] = df_sentimen["sentimen_neg_persen"].round(
+            1)
+
+        sentimen_pos_total = df_sentimen['sentimen_pos'].sum()
+        sentimen_neg_total = df_sentimen['sentimen_neg'].sum()
+        sentimen_all_total = sentimen_pos_total + sentimen_neg_total
+        sentimen_pos_total_persen = (
+            (sentimen_pos_total / sentimen_all_total) * 100).round(1)
+        sentimen_neg_total_persen = (
+            (sentimen_neg_total / sentimen_all_total) * 100).round(1)
+        print(sentimen_pos_total)
+        print(sentimen_neg_total)
+        print(sentimen_all_total)
+        print(sentimen_pos_total_persen)
+        print(sentimen_neg_total_persen)
+
+        sentimen_total_json_list = {
+            'sentimen_all_total': int(sentimen_all_total),
+            'sentimen_pos_total': int(sentimen_pos_total),
+            'sentimen_neg_total': int(sentimen_neg_total),
+            'sentimen_pos_total_persen': float(sentimen_pos_total_persen),
+            'sentimen_neg_total_persen': float(sentimen_neg_total_persen),
+        }
+
+        sentimen_daily_json_list = json.loads(json.dumps(
+            list(df_sentimen.T.to_dict().values())))
+
+        sentimen_json_list = {
+            'sentimen_total': sentimen_total_json_list,
+            'sentimen_daily': sentimen_daily_json_list,
+        }
+
+    if tweets_df.empty == True:
+
+        sentimen_total_json_list = {
+            'sentimen_all_total': 0,
+            'sentimen_pos_total': 0,
+            'sentimen_neg_total': 0,
+            'sentimen_pos_total_persen': 0,
+            'sentimen_neg_total_persen': 0,
+        }
+        sentimen_daily_json_list = [{
+            'id': 0,
+            'created_date': '-',
+            'sentimen_pos': 0,
+            'sentimen_neg': 0,
+            'sentimen_sum': 0,
+            'sentimen_pos_persen': 0,
+            'sentimen_neg_persen': 0,
+        }, ]
+        sentimen_json_list = {
+            'sentimen_total': sentimen_total_json_list,
+            'sentimen_daily': sentimen_daily_json_list,
+        }
+
+    response = jsonify(sentimen_json_list)
     response.status_code = 200
     return response
 
 
-@app.route('/api/tweet/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
-def get_all_tweet_saja_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
-    todos = repo.get_all_tweet_saja_provider_date_to_date(provider_pilihan,
-                                                          tanggal_awal, tanggal_akhir)
+@app.route('/api/fix_tweet/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
+def get_all_fix_tweet_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
+    todos = repo.get_all_tweet_provider_date_to_date(provider_pilihan,
+                                                     tanggal_awal, tanggal_akhir)
     tweets_df = pd.DataFrame(todos)
     if tweets_df.empty == False:
+        # seleksi lagi
+        tweets_df['text_preprocessed_2'] = tweets_df['text'].str.lower()
+        tweets_df["text_preprocessed_2"] = tweets_df["text_preprocessed_2"].str.replace(
+            '\n', ' ')
+        tweets_df['text_preprocessed_2'] = tweets_df['text_preprocessed_2'].str.replace(
+            'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', ' ')
+        tweets_df['text_preprocessed_2'] = tweets_df['text_preprocessed_2'].apply(
+            _hapus_spasi)
+        print(tweets_df)
+        tweets_df = tweets_df.drop_duplicates(subset='text_preprocessed_2')
+        tweets_df = tweets_df.sort_values(by=['created'])
+        tweets_df = tweets_df.reset_index(drop=True)
+        tweets_df.drop(tweets_df.columns[12], axis=1, inplace=True)
+        print(tweets_df.columns)
+        # ------------------------------
         tweet_data_json_list = json.loads(json.dumps(
             list(tweets_df.T.to_dict().values())))
         tweets_data_accumulator_json_list = {
             'tweets': tweet_data_json_list
         }
+
     if tweets_df.empty == True:
 
         tweet_data_json_list = [{
@@ -64,70 +220,31 @@ def get_all_tweet_saja_provider_date_to_date(provider_pilihan, tanggal_awal, tan
     return response
 
 
-@app.route('/api/sentimen/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
-def get_all_sentimendata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
-    todos = repo.get_all_sentimendata_provider_date_to_date(provider_pilihan,
-                                                            tanggal_awal, tanggal_akhir)
-    sentimen_daily_df = pd.DataFrame(todos)
-    print(sentimen_daily_df)
-    if sentimen_daily_df.empty == False:
-        sentimen_pos_total = sentimen_daily_df['sentimen_pos'].sum()
-        sentimen_neg_total = sentimen_daily_df['sentimen_neg'].sum()
-        sentimen_all_total = sentimen_pos_total + sentimen_neg_total
-        print(sentimen_pos_total)
-        print(sentimen_neg_total)
-        print(sentimen_all_total)
+@app.route('/api/fix_kata/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
+def get_all_fix_kata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
+    todos = repo.get_all_tweet_provider_date_to_date(provider_pilihan,
+                                                     tanggal_awal, tanggal_akhir)
 
-        sentimen_total_json_list = {
-            'sentimen_all_total': int(sentimen_all_total),
-            'sentimen_pos_total': int(sentimen_pos_total),
-            'sentimen_neg_total': int(sentimen_neg_total),
-        }
+    tweets_df = pd.DataFrame(todos)
+    # tweets_df = pd.DataFrame()
+    if tweets_df.empty == False:
 
-        sentimen_daily_df["id"] = sentimen_daily_df.index
-        sentimen_daily_df["sentimen_sum"] = sentimen_daily_df["sentimen_neg"] + \
-            sentimen_daily_df["sentimen_pos"]
-        print(sentimen_daily_df)
-        sentimen_daily_json_list = json.loads(json.dumps(
-            list(sentimen_daily_df.T.to_dict().values())))
+        # seleksi lagi
+        tweets_df['text_preprocessed_2'] = tweets_df['text'].str.lower()
+        tweets_df["text_preprocessed_2"] = tweets_df["text_preprocessed_2"].str.replace(
+            '\n', ' ')
+        tweets_df['text_preprocessed_2'] = tweets_df['text_preprocessed_2'].str.replace(
+            'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', ' ')
+        tweets_df['text_preprocessed_2'] = tweets_df['text_preprocessed_2'].apply(
+            _hapus_spasi)
+        print(tweets_df)
+        tweets_df = tweets_df.drop_duplicates(subset='text_preprocessed_2')
+        tweets_df = tweets_df.reset_index(drop=True)
+        tweets_df.drop(tweets_df.columns[12], axis=1, inplace=True)
+        print(tweets_df.columns)
+        # ------------------------------
 
-        sentimen_json_list = {
-            'sentimen_total': sentimen_total_json_list,
-            'sentimen_daily': sentimen_daily_json_list,
-        }
-    if sentimen_daily_df.empty == True:
-
-        sentimen_total_json_list = {
-            'sentimen_all_total': 0,
-            'sentimen_pos_total': 0,
-            'sentimen_neg_total': 0,
-        }
-        sentimen_daily_json_list = [{
-            'id': 0,
-            'created_date': '-',
-            'sentimen_pos': 0,
-            'sentimen_neg': 0,
-            'sentimen_sum': 0,
-        }, ]
-        sentimen_json_list = {
-            'sentimen_total': sentimen_total_json_list,
-            'sentimen_daily': sentimen_daily_json_list,
-        }
-
-    response = jsonify(sentimen_json_list)
-    response.status_code = 200
-    return response
-
-
-@app.route('/api/kata/provider/<string:provider_pilihan>/periode/<string:tanggal_awal>/<string:tanggal_akhir>', methods=['GET'])
-def get_all_kata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_akhir):
-    todos = repo.get_all_tweet_saja_provider_date_to_date(provider_pilihan,
-                                                          tanggal_awal, tanggal_akhir)
-
-    tweet_df = pd.DataFrame(todos)
-    # tweet_df = pd.DataFrame()
-    if tweet_df.empty == False:
-        tweet_positif_df = tweet_df[tweet_df["sentimen"].str.contains(
+        tweet_positif_df = tweets_df[tweets_df["sentimen"].str.contains(
             "positif") == True]
         if tweet_positif_df.empty == False:
             word_vectorizer_positif = CountVectorizer(ngram_range=(1, 2))
@@ -139,7 +256,7 @@ def get_all_kata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_a
                                                   columns=['frequency'])
             frequencies_positif_df = frequencies_positif_df.sort_values(
                 by=['frequency'], ascending=False)
-            frequencies_positif_df = frequencies_positif_df.head(30)
+            frequencies_positif_df = frequencies_positif_df.head(50)
             frequencies_positif_pasangan = list(
                 zip(frequencies_positif_df.index, frequencies_positif_df["frequency"]))
             frequencies_positif_pasangan_df = pd.DataFrame(frequencies_positif_pasangan,
@@ -157,7 +274,7 @@ def get_all_kata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_a
                 'id': 0,
             }
 
-        tweet_negatif_df = tweet_df[tweet_df["sentimen"].str.contains(
+        tweet_negatif_df = tweets_df[tweets_df["sentimen"].str.contains(
             "negatif") == True]
 
         if tweet_negatif_df.empty == False:
@@ -170,7 +287,7 @@ def get_all_kata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_a
                                                   columns=['frequency'])
             frequencies_negatif_df = frequencies_negatif_df.sort_values(
                 by=['frequency'], ascending=False)
-            frequencies_negatif_df = frequencies_negatif_df.head(30)
+            frequencies_negatif_df = frequencies_negatif_df.head(50)
             frequencies_negatif_pasangan = list(
                 zip(frequencies_negatif_df.index, frequencies_negatif_df["frequency"]))
             frequencies_negatif_pasangan_df = pd.DataFrame(frequencies_negatif_pasangan,
@@ -192,7 +309,7 @@ def get_all_kata_provider_date_to_date(provider_pilihan, tanggal_awal, tanggal_a
             'kata_positif': kata_positif_json_list,
             'kata_negatif': kata_negatif_json_list
         }
-    if tweet_df.empty == True:
+    if tweets_df.empty == True:
         kata_negatif_json_list = [{
             'kata': '-',
             'frekuensi': 0,
