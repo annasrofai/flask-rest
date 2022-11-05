@@ -12,19 +12,19 @@ class TweetDataRepository:
 
     def __init__(self):
         # # ----- db lokal
-        self.client = MongoClient('localhost', 27017)
-        self.db = self.client.TwitterStream
-        self.tweet_data = self.db.tweetsSentimentLocationAll
+        # self.client = MongoClient('localhost', 27017)
+        # self.db = self.client.TwitterStream
+        # self.tweet_data = self.db.tweetsSentimentLocationAll
         # # # ----- db atlasku
         # self.client = MongoClient(
         #     "mongodb+srv://capstone:dteti@cluster0.fz15r5k.mongodb.net/?retryWrites=true&w=majority")
         # self.db = self.client.TwtStream
         # self.tweet_data = self.db.TwtSen
         # # ----- db atlas labib
-        # self.client = MongoClient(
-        #     "mongodb+srv://m001-student:m001-mongodb-basics@sandbox.n2kupvf.mongodb.net/?retryWrites=true&w=majority")
-        # self.db = self.client.moniqq
-        # self.tweet_data = self.db.qoeTweetSentimen
+        self.client = MongoClient(
+            "mongodb+srv://m001-student:m001-mongodb-basics@sandbox.n2kupvf.mongodb.net/?retryWrites=true&w=majority")
+        self.db = self.client.moniqq
+        self.tweet_data = self.db.qoeTweetSentimen
     # mengambil semua data tweet berdasarkan provider dan tanggal mulai dan tanggal berakhir
 
     def get_all_tweet_provider_lokasi_date_to_date(self, provider, lokasi, tanggal_awal, tanggal_akhir):
